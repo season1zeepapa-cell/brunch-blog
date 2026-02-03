@@ -1,10 +1,9 @@
 /**
  * ================================================
- * 🌤️ 브런치 블로그 - 백엔드 API (Vercel 서버리스 함수)
+ * 📝 브런치 블로그 - 백엔드 API (Vercel 서버리스 함수)
  * ================================================
  *
  * 이 파일은 모든 백엔드 엔드포인트를 정의합니다.
- * - /api/weather: 날씨 정보 및 테마 색상 반환
  * - /api/posts: 게시글 CRUD 작업
  *
  * DB 연결 방식: pg Pool (PostgreSQL 직접 연결)
@@ -14,7 +13,6 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');  // pg 라이브러리에서 Pool 가져오기
-const fetch = require('node-fetch');  // 외부 API 호출용
 
 // ================================================
 // 환경 설정
@@ -83,97 +81,6 @@ async function ensureSchema() {
 
 // 서버 시작 시 스키마 확인 (비동기 즉시 실행)
 ensureSchema().catch(console.error);
-
-// ================================================
-// 날씨 테마 매핑 설정
-// ================================================
-// Open-Meteo API의 weathercode를 테마 색상으로 변환합니다
-// weathercode 참고: https://open-meteo.com/en/docs
-const getThemeFromWeatherCode = (code) => {
-  // 맑음 (코드 0)
-  if (code === 0) {
-    return { color: '#00C6BD', name: 'clear', label: '맑음' };
-  }
-  // 구름/흐림 (코드 1-3, 45, 48)
-  if ([1, 2, 3, 45, 48].includes(code)) {
-    return { color: '#8E8E93', name: 'clouds', label: '흐림' };
-  }
-  // 비/이슬비/소나기 (코드 51-67, 80-82)
-  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
-    return { color: '#4A90E2', name: 'rain', label: '비' };
-  }
-  // 눈 (코드 71-77, 85, 86)
-  if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
-    return { color: '#B8C5D6', name: 'snow', label: '눈' };
-  }
-  // 천둥번개 (코드 95-99)
-  if (code >= 95 && code <= 99) {
-    return { color: '#4A90E2', name: 'thunderstorm', label: '천둥번개' };
-  }
-  // 기본값 (민트)
-  return { color: '#00C6BD', name: 'default', label: '기본' };
-};
-
-// ================================================
-// 🌤️ 날씨 API 엔드포인트
-// ================================================
-/**
- * GET /api/weather
- *
- * 현재 위치의 날씨 정보와 해당하는 테마 색상을 반환합니다.
- * Open-Meteo API를 사용하여 날씨 정보를 가져옵니다 (API 키 불필요!)
- *
- * Query Parameters:
- * - lat: 위도 (기본값: 37.5665 - 서울)
- * - lon: 경도 (기본값: 126.9780 - 서울)
- *
- * Response:
- * {
- *   success: true,
- *   weather: { code, temp, description },
- *   theme: { color, name, label }
- * }
- */
-app.get('/api/weather', async (req, res) => {
-  try {
-    // 쿼리 파라미터에서 위도/경도 추출 (기본값: 서울)
-    const { lat = 37.5665, lon = 126.9780 } = req.query;
-
-    // Open-Meteo API 호출 (무료, API 키 불필요!)
-    const response = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=Asia/Seoul`
-    );
-
-    if (!response.ok) {
-      throw new Error('날씨 API 호출 실패');
-    }
-
-    const data = await response.json();
-    const currentWeather = data.current_weather;
-
-    // 날씨 코드에 따른 테마 결정
-    const theme = getThemeFromWeatherCode(currentWeather.weathercode);
-
-    res.json({
-      success: true,
-      weather: {
-        code: currentWeather.weathercode,
-        temp: Math.round(currentWeather.temperature),
-        description: theme.label
-      },
-      theme
-    });
-  } catch (error) {
-    console.error('날씨 API 에러:', error);
-
-    // 에러 발생 시 기본 테마(민트) 반환 - 폴백 처리
-    res.json({
-      success: false,
-      theme: { color: '#00C6BD', name: 'default', label: '기본' },
-      error: error.message
-    });
-  }
-});
 
 // ================================================
 // 📝 게시글 CRUD API 엔드포인트
