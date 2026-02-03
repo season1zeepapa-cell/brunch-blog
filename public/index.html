@@ -142,18 +142,20 @@
 
     <!-- 메인 페이지 (홈) -->
     <div id="home-view">
-        <header class="relative h-[80vh] md:h-screen w-full overflow-hidden">
+        <!-- 히어로 섹션: 모바일 50vh, 데스크탑 60vh로 축소 -->
+        <header class="relative h-[50vh] md:h-[60vh] w-full overflow-hidden">
             <img src="https://images.unsplash.com/photo-1499750310107-5fef28a66643?q=80&w=2070" alt="Main" class="w-full h-full object-cover">
-            <div class="absolute inset-0 bg-black/30 flex flex-col items-center justify-center text-white text-center px-6">
-                <h1 class="text-3xl md:text-5xl font-extralight mb-4 fade-in">여백이 주는 위로와 기록</h1>
-                <p class="text-base md:text-xl font-light opacity-90 fade-in" style="animation-delay: 0.3s;">단순함 속에 담긴 깊은 이야기들을 만나보세요.</p>
+            <div class="absolute inset-0 bg-black/30 flex flex-col items-center justify-center text-white text-center px-4">
+                <h1 class="text-2xl md:text-4xl font-extralight mb-3 fade-in">여백이 주는 위로와 기록</h1>
+                <p class="text-sm md:text-lg font-light opacity-90 fade-in" style="animation-delay: 0.3s;">단순함 속에 담긴 깊은 이야기들을 만나보세요.</p>
             </div>
         </header>
 
-        <main class="max-w-4xl mx-auto py-16 md:py-24 px-6">
-            <h2 class="text-xs font-semibold tracking-[0.2em] text-gray-400 mb-12 uppercase">Latest Stories</h2>
+        <!-- 메인 영역: 패딩과 간격 축소 -->
+        <main class="max-w-3xl mx-auto py-10 md:py-16 px-4 md:px-6">
+            <h2 class="text-xs font-semibold tracking-[0.2em] text-gray-400 mb-8 md:mb-10 uppercase">Latest Stories</h2>
             <!-- 게시글 목록 (DB에서 동적 로드) -->
-            <div id="post-list" class="space-y-20 md:space-y-24">
+            <div id="post-list" class="space-y-10 md:space-y-14">
                 <!-- 로딩 중 표시 -->
                 <div class="text-center py-12 text-gray-400">
                     <div class="loading-spinner mx-auto mb-4" style="border-color: #00C6BD; border-top-color: transparent;"></div>
@@ -220,9 +222,9 @@
         </div>
     </div>
 
-    <footer class="bg-gray-50 dark:bg-[#111] py-16 border-t border-gray-100 dark:border-gray-900 transition-colors">
-        <div class="max-w-4xl mx-auto px-6 text-center">
-            <div class="text-xl font-light tracking-widest mb-4 opacity-50">VISUAL DIARY</div>
+    <footer class="bg-gray-50 dark:bg-[#111] py-10 md:py-12 border-t border-gray-100 dark:border-gray-900 transition-colors">
+        <div class="max-w-3xl mx-auto px-4 md:px-6 text-center">
+            <div class="text-lg font-light tracking-widest mb-3 opacity-50">VISUAL DIARY</div>
             <p class="text-xs text-gray-400 font-light">© 2026 Visual Diary. All stories are written with heart.</p>
         </div>
     </footer>
@@ -298,6 +300,24 @@
             return await response.json();
         }
 
+        // 게시글 수정
+        async function updatePost(id, postData) {
+            const response = await fetch(`/api/posts/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(postData)
+            });
+            return await response.json();
+        }
+
+        // 게시글 삭제
+        async function deletePost(id) {
+            const response = await fetch(`/api/posts/${id}`, {
+                method: 'DELETE'
+            });
+            return await response.json();
+        }
+
         // ================================================
         // 3. 렌더링 함수
         // ================================================
@@ -327,19 +347,20 @@
                 return;
             }
 
+            // 게시글 카드: 이미지 높이 축소, 간격 축소
             container.innerHTML = posts.map(post => `
                 <article class="article-card group cursor-pointer fade-in" onclick="showPost(${post.id})">
-                    <div class="flex flex-col md:flex-row gap-6 md:gap-10 items-start">
-                        <div class="w-full md:w-1/2 overflow-hidden rounded-sm aspect-video md:aspect-auto">
+                    <div class="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
+                        <div class="w-full md:w-2/5 overflow-hidden rounded-sm">
                             <img src="${post.thumbnail || 'https://images.unsplash.com/photo-1471107340929-a87cd0f5b5f3?q=80&w=1973'}"
-                                 class="w-full h-64 object-cover transition-transform duration-500 group-hover:scale-105"
+                                 class="w-full h-40 md:h-44 object-cover transition-transform duration-500 group-hover:scale-105"
                                  onerror="this.src='https://images.unsplash.com/photo-1471107340929-a87cd0f5b5f3?q=80&w=1973'">
                         </div>
-                        <div class="w-full md:w-1/2">
+                        <div class="w-full md:w-3/5">
                             <span class="text-[10px] text-teal-500 font-bold uppercase tracking-wider">Story</span>
-                            <h3 class="text-xl md:text-2xl font-light mt-2 mb-3 group-hover:text-teal-600 transition">${escapeHtml(post.title)}</h3>
-                            <p class="text-gray-500 font-light leading-relaxed text-sm md:text-base">${escapeHtml(post.excerpt || '')}</p>
-                            <div class="mt-6 flex items-center text-[11px] text-gray-400 space-x-3">
+                            <h3 class="text-lg md:text-xl font-light mt-1 mb-2 group-hover:text-teal-600 transition">${escapeHtml(post.title)}</h3>
+                            <p class="text-gray-500 font-light leading-relaxed text-sm line-clamp-2">${escapeHtml(post.excerpt || '')}</p>
+                            <div class="mt-3 flex items-center text-[11px] text-gray-400 space-x-3">
                                 <span>${formatDate(post.created_at)}</span>
                                 <span>조회 ${post.view_count || 0}</span>
                             </div>
@@ -349,8 +370,12 @@
             `).join('');
         }
 
+        // 현재 보고 있는 게시글 저장 (수정 시 사용)
+        let currentPost = null;
+
         // 게시글 상세 렌더링
         function renderPostDetail(post) {
+            currentPost = post; // 현재 게시글 저장
             const container = document.getElementById('post-detail');
 
             // 본문을 단락으로 분리
@@ -358,12 +383,23 @@
             const contentHtml = paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join('');
 
             container.innerHTML = `
-                <button onclick="showHome()" class="flex items-center gap-2 text-gray-500 hover:text-teal-500 transition mb-8">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                    </svg>
-                    <span>목록으로</span>
-                </button>
+                <div class="flex justify-between items-center mb-8">
+                    <button onclick="showHome()" class="flex items-center gap-2 text-gray-500 hover:text-teal-500 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                        <span>목록으로</span>
+                    </button>
+                    <!-- 수정/삭제 버튼 -->
+                    <div class="flex gap-2">
+                        <button onclick="showEdit()" class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-full hover:border-teal-500 hover:text-teal-500 transition">
+                            수정
+                        </button>
+                        <button onclick="confirmDelete(${post.id})" class="px-3 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-full hover:border-red-500 hover:text-red-500 transition">
+                            삭제
+                        </button>
+                    </div>
+                </div>
 
                 <span class="text-xs text-teal-500 font-bold tracking-widest uppercase mb-4 block">Story</span>
                 <h1 class="text-3xl md:text-5xl font-extralight leading-tight mb-8">${escapeHtml(post.title)}</h1>
@@ -379,7 +415,7 @@
                 </div>
 
                 ${post.thumbnail ? `
-                    <img src="${post.thumbnail}" class="w-full h-[50vh] object-cover rounded-sm my-12"
+                    <img src="${post.thumbnail}" class="w-full h-[35vh] md:h-[40vh] object-cover rounded-sm my-8 md:my-10"
                          onerror="this.style.display='none'">
                 ` : ''}
 
@@ -401,6 +437,9 @@
         // 4. 뷰 전환 함수
         // ================================================
 
+        // 수정 모드 여부 (null이면 신규 작성, 값이 있으면 수정)
+        let editingPostId = null;
+
         function hideAllViews() {
             document.getElementById('home-view').classList.add('hidden');
             document.getElementById('post-view').classList.add('hidden');
@@ -421,12 +460,52 @@
             fetchPost(id);
         }
 
+        // 새 글 작성
         function showWrite() {
+            editingPostId = null; // 신규 작성 모드
             hideAllViews();
             document.getElementById('write-view').classList.remove('hidden');
             window.scrollTo(0, 0);
             // 폼 초기화
             document.getElementById('write-form').reset();
+            // 제목 변경
+            document.querySelector('#write-view h1').textContent = '새 이야기 작성';
+            document.getElementById('submit-text').textContent = '저장하기';
+        }
+
+        // 글 수정 (currentPost 사용)
+        function showEdit() {
+            if (!currentPost) return;
+            editingPostId = currentPost.id; // 수정 모드
+            hideAllViews();
+            document.getElementById('write-view').classList.remove('hidden');
+            window.scrollTo(0, 0);
+            // 기존 데이터를 폼에 채움
+            document.getElementById('post-title-input').value = currentPost.title || '';
+            document.getElementById('post-excerpt-input').value = currentPost.excerpt || '';
+            document.getElementById('post-thumbnail-input').value = currentPost.thumbnail || '';
+            document.getElementById('post-content-input').value = currentPost.content || '';
+            // 제목 변경
+            document.querySelector('#write-view h1').textContent = '이야기 수정';
+            document.getElementById('submit-text').textContent = '수정하기';
+        }
+
+        // 삭제 확인
+        async function confirmDelete(id) {
+            if (!confirm('정말 이 게시글을 삭제하시겠습니까?')) return;
+
+            try {
+                const result = await deletePost(id);
+                if (result.success) {
+                    alert('게시글이 삭제되었습니다.');
+                    showHome();
+                } else {
+                    alert('삭제 실패: ' + (result.error || '알 수 없는 오류'));
+                }
+            } catch (error) {
+                console.error('삭제 실패:', error);
+                alert('삭제 중 오류가 발생했습니다.');
+            }
         }
 
         // ================================================
@@ -453,10 +532,17 @@
             };
 
             try {
-                const result = await createPost(postData);
+                let result;
+                // 수정 모드면 PUT, 신규면 POST
+                if (editingPostId) {
+                    result = await updatePost(editingPostId, postData);
+                } else {
+                    result = await createPost(postData);
+                }
 
                 if (result.success) {
-                    alert('게시글이 저장되었습니다!');
+                    alert(editingPostId ? '게시글이 수정되었습니다!' : '게시글이 저장되었습니다!');
+                    editingPostId = null; // 수정 모드 해제
                     showHome();
                 } else {
                     alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
