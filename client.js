@@ -121,8 +121,67 @@ const API = {
 /**
  * 날씨에 따른 테마 색상을 관리하는 객체
  * - CSS 변수를 동적으로 변경하여 테마 적용
+ * - 클라이언트에서 직접 Open-Meteo API 호출 (서버 우회)
  */
 const ThemeManager = {
+  /**
+   * 날씨 코드 → 한글 설명 매핑
+   * Open-Meteo API의 weathercode를 사람이 읽을 수 있는 텍스트로 변환
+   */
+  weatherMap: {
+    0: '맑음',
+    1: '대체로 맑음',
+    2: '부분적으로 흐림',
+    3: '흐림',
+    45: '안개',
+    48: '안개',
+    51: '이슬비',
+    53: '이슬비',
+    55: '이슬비',
+    61: '비',
+    63: '비',
+    65: '폭우',
+    71: '눈',
+    73: '눈',
+    75: '폭설',
+    80: '소나기',
+    81: '소나기',
+    82: '폭우',
+    95: '천둥번개',
+    96: '천둥번개',
+    99: '천둥번개'
+  },
+
+  /**
+   * 날씨 코드에 따른 테마 색상 반환
+   * @param {number} code - Open-Meteo weathercode
+   * @returns {object} - { color, name, label }
+   */
+  getThemeFromWeatherCode(code) {
+    // 맑음 (코드 0)
+    if (code === 0) {
+      return { color: '#00C6BD', name: 'clear', label: '맑음' };
+    }
+    // 구름/흐림 (코드 1-3, 45, 48)
+    if ([1, 2, 3, 45, 48].includes(code)) {
+      return { color: '#8E8E93', name: 'clouds', label: this.weatherMap[code] || '흐림' };
+    }
+    // 비/이슬비/소나기 (코드 51-67, 80-82)
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+      return { color: '#4A90E2', name: 'rain', label: this.weatherMap[code] || '비' };
+    }
+    // 눈 (코드 71-77, 85, 86)
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
+      return { color: '#B8C5D6', name: 'snow', label: this.weatherMap[code] || '눈' };
+    }
+    // 천둥번개 (코드 95-99)
+    if (code >= 95 && code <= 99) {
+      return { color: '#4A90E2', name: 'thunderstorm', label: '천둥번개' };
+    }
+    // 기본값 (민트)
+    return { color: '#00C6BD', name: 'default', label: '기본' };
+  },
+
   /**
    * 테마를 화면에 적용
    * @param {object} theme - 테마 정보 { color, name, label }
@@ -186,48 +245,90 @@ const ThemeManager = {
 
   /**
    * 사용자 위치 기반으로 날씨를 로드하고 테마 적용
+   * (taste-log 방식: 클라이언트에서 직접 Open-Meteo API 호출)
    *
    * 흐름:
-   * 1. 브라우저에서 위치 정보 요청
-   * 2. 허용되면 실제 위치로 API 호출
-   * 3. 거부되면 기본 위치(서울)로 API 호출
-   * 4. 테마 적용
+   * 1. 브라우저에서 위치 정보 요청 (navigator.geolocation)
+   * 2. 허용되면 실제 위치 좌표로 날씨 API 직접 호출
+   * 3. 거부되면 기본 위치(서울)로 날씨 API 호출
+   * 4. 날씨 코드에 따라 테마 적용
    */
   async loadWeatherTheme() {
+    // 기본 위치: 서울
+    const DEFAULT_LAT = 37.5665;
+    const DEFAULT_LON = 126.978;
+
     try {
       // 브라우저가 위치 정보를 지원하는지 확인
       if (navigator.geolocation) {
-        // 위치 정보 요청 (비동기)
-        navigator.geolocation.getCurrentPosition(
-          // 성공 콜백: 위치 정보 획득 성공
-          async (position) => {
-            const { latitude, longitude } = position.coords;
-            const result = await API.getWeather(latitude, longitude);
-            this.applyTheme(result.theme);
-            if (result.weather) {
-              this.updateWeatherIndicator(result.theme, result.weather.temp);
-            }
-          },
-          // 실패 콜백: 위치 정보 거부됨
-          async () => {
-            console.log('위치 권한 거부됨, 기본 위치(서울) 사용');
-            const result = await API.getWeather();  // 기본값 사용
-            this.applyTheme(result.theme);
-            if (result.weather) {
-              this.updateWeatherIndicator(result.theme, result.weather.temp);
-            }
-          },
-          // 옵션
-          { timeout: 5000 }  // 5초 타임아웃
-        );
+        // 위치 정보 요청 (Promise로 감싸서 async/await 사용)
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 3000,           // 3초 타임아웃 (빠른 응답)
+            enableHighAccuracy: false // 대략적인 위치로 충분
+          });
+        }).catch(() => null);  // 거부 시 null 반환
+
+        // 위치 정보 획득 여부에 따라 좌표 설정
+        const latitude = position?.coords?.latitude || DEFAULT_LAT;
+        const longitude = position?.coords?.longitude || DEFAULT_LON;
+
+        if (!position) {
+          console.log('📍 위치 권한 거부됨, 기본 위치(서울) 사용');
+        } else {
+          console.log(`📍 현재 위치: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        }
+
+        // Open-Meteo API 직접 호출 (클라이언트에서 직접!)
+        await this.fetchWeatherAndApply(latitude, longitude);
+
       } else {
         // 위치 정보 미지원 브라우저
-        const result = await API.getWeather();
-        this.applyTheme(result.theme);
+        console.log('📍 위치 정보 미지원, 기본 위치(서울) 사용');
+        await this.fetchWeatherAndApply(DEFAULT_LAT, DEFAULT_LON);
       }
     } catch (error) {
       console.error('테마 로드 실패:', error);
       // 폴백: 기본 민트 테마
+      this.applyTheme({ color: '#00C6BD', name: 'default', label: '기본' });
+      this.updateWeatherIndicator({ label: '기본' });
+    }
+  },
+
+  /**
+   * Open-Meteo API를 직접 호출하여 날씨를 가져오고 테마 적용
+   * @param {number} lat - 위도
+   * @param {number} lon - 경도
+   */
+  async fetchWeatherAndApply(lat, lon) {
+    try {
+      // Open-Meteo API 직접 호출 (무료, API 키 불필요!)
+      const response = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode&timezone=Asia/Seoul`
+      );
+
+      if (!response.ok) {
+        throw new Error('날씨 API 호출 실패');
+      }
+
+      const data = await response.json();
+
+      // 날씨 정보 추출
+      const temp = Math.round(data.current?.temperature_2m ?? 0);
+      const weatherCode = data.current?.weathercode ?? 0;
+
+      // 날씨 코드에 따른 테마 결정
+      const theme = this.getThemeFromWeatherCode(weatherCode);
+
+      console.log(`🌤️ 날씨: ${theme.label}, ${temp}°C (코드: ${weatherCode})`);
+
+      // 테마 적용 및 UI 업데이트
+      this.applyTheme(theme);
+      this.updateWeatherIndicator(theme, temp);
+
+    } catch (error) {
+      console.error('날씨 API 에러:', error);
+      // 폴백: 기본 테마
       this.applyTheme({ color: '#00C6BD', name: 'default', label: '기본' });
     }
   }

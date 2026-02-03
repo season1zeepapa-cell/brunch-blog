@@ -9,6 +9,10 @@
  * 실행 방법: npm run dev 또는 node server.js
  */
 
+// DNS 설정: IPv4 우선 사용 (일부 네트워크에서 IPv6 연결 문제 해결)
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 // 환경 변수 로드 (.env 파일에서)
 require('dotenv').config();
 

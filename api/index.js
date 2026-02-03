@@ -7,12 +7,14 @@
  * - /api/weather: 날씨 정보 및 테마 색상 반환
  * - /api/posts: 게시글 CRUD 작업
  *
+ * DB 연결 방식: pg Pool (PostgreSQL 직접 연결)
  * Vercel 서버리스 규격: module.exports = app
  */
 
 const express = require('express');
 const cors = require('cors');
-const { createClient } = require('@supabase/supabase-js');
+const { Pool } = require('pg');  // pg 라이브러리에서 Pool 가져오기
+const fetch = require('node-fetch');  // 외부 API 호출용
 
 // ================================================
 // 환경 설정
@@ -33,13 +35,54 @@ app.use(express.json());  // JSON 요청 본문 파싱
 app.use(express.static('public'));  // public 폴더의 정적 파일 제공
 
 // ================================================
-// Supabase 클라이언트 초기화
+// PostgreSQL Pool 설정
 // ================================================
-// Supabase는 PostgreSQL 기반의 서버리스 데이터베이스입니다
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+// Pool은 여러 연결을 관리하는 연결 풀(Connection Pool)입니다
+// 매번 새 연결을 만들지 않고, 미리 만들어둔 연결을 재사용하여 성능을 높입니다
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,  // 환경변수에서 연결 문자열 가져오기
+  ssl: {
+    rejectUnauthorized: false  // Supabase는 SSL 연결이 필요하지만, 인증서 검증은 비활성화
+  }
+});
+
+// ================================================
+// 스키마 자동 생성 함수
+// ================================================
+/**
+ * ensureSchema()
+ *
+ * 서버 시작 시 posts 테이블이 없으면 자동으로 생성합니다.
+ * 이렇게 하면 수동으로 마이그레이션을 실행하지 않아도 됩니다!
+ */
+async function ensureSchema() {
+  const client = await pool.connect();  // 연결 풀에서 연결 하나 가져오기
+
+  try {
+    // posts 테이블 생성 (이미 존재하면 무시)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS posts (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        excerpt TEXT DEFAULT '',
+        thumbnail TEXT,
+        view_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('✅ posts 테이블 스키마 확인 완료');
+  } catch (error) {
+    console.error('❌ 스키마 생성 에러:', error);
+    throw error;
+  } finally {
+    client.release();  // 연결을 풀에 반납 (중요!)
+  }
+}
+
+// 서버 시작 시 스키마 확인 (비동기 즉시 실행)
+ensureSchema().catch(console.error);
 
 // ================================================
 // 날씨 테마 매핑 설정
@@ -144,30 +187,41 @@ app.get('/api/weather', async (req, res) => {
  * Query Parameters:
  * - page: 페이지 번호 (기본값: 1)
  * - limit: 페이지당 게시글 수 (기본값: 10)
+ *
+ * PostgreSQL 쿼리 설명:
+ * - SELECT: 가져올 컬럼들 지정
+ * - ORDER BY: 정렬 기준 (created_at DESC = 최신순)
+ * - LIMIT: 가져올 행 수
+ * - OFFSET: 건너뛸 행 수 (페이지네이션용)
  */
 app.get('/api/posts', async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
-    // Supabase에서 게시글 조회
-    // select: 가져올 컬럼 지정, count: 전체 개수도 함께 조회
-    const { data, error, count } = await supabase
-      .from('posts')
-      .select('id, title, excerpt, thumbnail, created_at, view_count', { count: 'exact' })
-      .order('created_at', { ascending: false })  // 최신순 정렬
-      .range(offset, offset + Number(limit) - 1);  // 페이지네이션
+    // 게시글 목록 조회
+    // $1, $2 등은 파라미터 플레이스홀더입니다 (SQL 인젝션 방지)
+    const postsResult = await pool.query(
+      `SELECT id, title, excerpt, thumbnail, created_at, view_count
+       FROM posts
+       ORDER BY created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
 
-    if (error) throw error;
+    // 전체 게시글 수 조회 (페이지네이션 정보용)
+    const countResult = await pool.query('SELECT COUNT(*) FROM posts');
+    const total = parseInt(countResult.rows[0].count);
 
     res.json({
       success: true,
-      posts: data || [],
+      posts: postsResult.rows,  // .rows에 실제 데이터가 들어있습니다
       pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / limit)
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -181,34 +235,38 @@ app.get('/api/posts', async (req, res) => {
  *
  * 특정 게시글의 상세 정보를 반환합니다.
  * 조회할 때마다 조회수가 1 증가합니다.
+ *
+ * PostgreSQL 쿼리 설명:
+ * - WHERE id = $1: id가 파라미터와 일치하는 행 찾기
  */
 app.get('/api/posts/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
     // 게시글 조회
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('id', id)
-      .single();  // 단일 결과만 반환
+    const result = await pool.query(
+      'SELECT * FROM posts WHERE id = $1',
+      [id]
+    );
 
-    if (error) throw error;
-    if (!data) {
+    // 결과가 없으면 404 에러
+    if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: '게시글을 찾을 수 없습니다.'
       });
     }
 
-    // 조회수 증가 (비동기로 처리, 응답 지연 방지)
-    supabase
-      .from('posts')
-      .update({ view_count: (data.view_count || 0) + 1 })
-      .eq('id', id)
-      .then();
+    const post = result.rows[0];
 
-    res.json({ success: true, post: data });
+    // 조회수 증가 (비동기로 처리, 응답 지연 방지)
+    // RETURNING 없이 실행하여 응답을 기다리지 않음
+    pool.query(
+      'UPDATE posts SET view_count = view_count + 1 WHERE id = $1',
+      [id]
+    ).catch(err => console.error('조회수 증가 에러:', err));
+
+    res.json({ success: true, post });
   } catch (error) {
     console.error('게시글 상세 조회 에러:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -227,6 +285,10 @@ app.get('/api/posts/:id', async (req, res) => {
  *   excerpt: "요약" (선택),
  *   thumbnail: "썸네일 URL" (선택)
  * }
+ *
+ * PostgreSQL 쿼리 설명:
+ * - INSERT INTO: 새 행 삽입
+ * - RETURNING *: 삽입된 행을 바로 반환 (다시 SELECT 안 해도 됨)
  */
 app.post('/api/posts', async (req, res) => {
   try {
@@ -240,21 +302,15 @@ app.post('/api/posts', async (req, res) => {
       });
     }
 
-    // 게시글 생성
-    const { data, error } = await supabase
-      .from('posts')
-      .insert([{
-        title,
-        content,
-        excerpt: excerpt || '',  // 요약이 없으면 빈 문자열
-        thumbnail: thumbnail || null
-      }])
-      .select()
-      .single();
+    // 게시글 생성 후 생성된 행 반환
+    const result = await pool.query(
+      `INSERT INTO posts (title, content, excerpt, thumbnail)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [title, content, excerpt || '', thumbnail || null]
+    );
 
-    if (error) throw error;
-
-    res.status(201).json({ success: true, post: data });
+    res.status(201).json({ success: true, post: result.rows[0] });
   } catch (error) {
     console.error('게시글 생성 에러:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -265,29 +321,35 @@ app.post('/api/posts', async (req, res) => {
  * PUT /api/posts/:id
  *
  * 기존 게시글을 수정합니다.
+ *
+ * PostgreSQL 쿼리 설명:
+ * - UPDATE ... SET: 기존 행의 값 변경
+ * - NOW(): 현재 시각을 updated_at에 저장
+ * - RETURNING *: 수정된 행 반환
  */
 app.put('/api/posts/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, content, excerpt, thumbnail } = req.body;
 
-    // 게시글 수정 (updated_at 자동 갱신)
-    const { data, error } = await supabase
-      .from('posts')
-      .update({
-        title,
-        content,
-        excerpt,
-        thumbnail,
-        updated_at: new Date().toISOString()  // 수정 시간 갱신
-      })
-      .eq('id', id)
-      .select()
-      .single();
+    // 게시글 수정 후 수정된 행 반환
+    const result = await pool.query(
+      `UPDATE posts
+       SET title = $1, content = $2, excerpt = $3, thumbnail = $4, updated_at = NOW()
+       WHERE id = $5
+       RETURNING *`,
+      [title, content, excerpt, thumbnail, id]
+    );
 
-    if (error) throw error;
+    // 수정할 게시글이 없으면 404
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: '게시글을 찾을 수 없습니다.'
+      });
+    }
 
-    res.json({ success: true, post: data });
+    res.json({ success: true, post: result.rows[0] });
   } catch (error) {
     console.error('게시글 수정 에러:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -298,18 +360,28 @@ app.put('/api/posts/:id', async (req, res) => {
  * DELETE /api/posts/:id
  *
  * 게시글을 삭제합니다.
+ *
+ * PostgreSQL 쿼리 설명:
+ * - DELETE FROM: 행 삭제
+ * - RETURNING id: 삭제된 행의 id 반환 (삭제 확인용)
  */
 app.delete('/api/posts/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 게시글 삭제
-    const { error } = await supabase
-      .from('posts')
-      .delete()
-      .eq('id', id);
+    // 게시글 삭제 (삭제된 id 반환)
+    const result = await pool.query(
+      'DELETE FROM posts WHERE id = $1 RETURNING id',
+      [id]
+    );
 
-    if (error) throw error;
+    // 삭제할 게시글이 없으면 404
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: '게시글을 찾을 수 없습니다.'
+      });
+    }
 
     res.json({ success: true, message: '게시글이 삭제되었습니다.' });
   } catch (error) {
