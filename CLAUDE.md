@@ -4,7 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-미니멀 감성 블로그 (Visual Diary). PostgreSQL(Supabase)에 게시글을 저장하고, 다크모드를 지원하는 SPA 블로그입니다.
+**Brunch Blog** - 미니멀 감성 블로그. PostgreSQL(Supabase)에 게시글을 저장하고, 다크모드를 지원하는 SPA 블로그입니다. 게시글 CRUD(생성/조회/수정/삭제) 기능을 제공합니다.
+
+## 기술 스택
+
+- **프론트엔드:** HTML5, Tailwind CSS (CDN), Vanilla JS (ES6+), Pretendard 폰트
+- **백엔드:** Node.js (>=18), Express.js 4.18
+- **데이터베이스:** PostgreSQL (Supabase, pg 드라이버)
+- **배포:** Vercel 서버리스
 
 ## 개발 명령어
 
@@ -12,9 +19,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # 로컬 개발 서버 실행 (http://localhost:3000)
 npm run dev
 
-# API 테스트
+# API 테스트 - 목록 조회
 curl http://localhost:3000/api/posts
+
+# API 테스트 - 상세 조회
 curl http://localhost:3000/api/posts/1
+
+# API 테스트 - 게시글 생성
+curl -X POST http://localhost:3000/api/posts \
+  -H "Content-Type: application/json" \
+  -d '{"title":"제목","content":"내용","excerpt":"요약"}'
+
+# API 테스트 - 게시글 수정
+curl -X PUT http://localhost:3000/api/posts/1 \
+  -H "Content-Type: application/json" \
+  -d '{"title":"수정된 제목","content":"수정된 내용"}'
+
+# API 테스트 - 게시글 삭제
+curl -X DELETE http://localhost:3000/api/posts/1
 ```
 
 ## 아키텍처
@@ -44,10 +66,12 @@ SPA 방식으로 DOM을 show/hide하여 뷰를 전환합니다.
 | `write-view` | 글쓰기 폼 |
 
 주요 함수:
-- `showHome()`, `showPost(id)`, `showWrite()`: 뷰 전환
-- `fetchPosts()`, `fetchPost(id)`, `createPost(data)`: API 호출
+- `showHome()`, `showPost(id)`, `showWrite()`, `showEdit()`: 뷰 전환
+- `fetchPosts()`, `fetchPost(id)`, `createPost(data)`, `updatePost(id, data)`, `deletePost(id)`: API 호출
 - `renderPostList(posts)`, `renderPostDetail(post)`: DOM 렌더링
+- `confirmDelete(id)`: 삭제 확인 다이얼로그
 - `updateTheme(isDark)`: 다크/라이트 모드 토글
+- `escapeHtml(text)`: XSS 방지용 HTML 이스케이프
 
 ### API 엔드포인트
 
@@ -88,4 +112,13 @@ PORT=3000                       # 로컬 개발 포트
 
 Vercel 서버리스 배포 (`vercel.json`)
 - `/api/*` → `api/index.js`
-- 그 외 → `public/index.html`
+- 정적 파일 (js, css, 이미지) → `public/` 폴더
+- 그 외 → `public/index.html` (SPA 라우팅)
+
+```bash
+# Vercel CLI로 배포
+vercel
+
+# 프로덕션 배포
+vercel --prod
+```
