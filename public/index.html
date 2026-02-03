@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="날씨에 따라 색상이 변하는 감성 블로그">
+  <title>브런치 블로그</title>
+
+  <!-- ================================================
+       외부 라이브러리 (CDN)
+       ================================================ -->
+  <!-- Tailwind CSS - 유틸리티 기반 CSS 프레임워크 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Pretendard 폰트 - 깔끔한 한글 폰트 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+
+  <!-- Noto Serif KR - 본문용 세리프 폰트 -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;700&display=swap" rel="stylesheet">
+
+  <!-- marked.js - 마크다운을 HTML로 변환 -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Lucide Icons - 아이콘 라이브러리 -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- ================================================
+       커스텀 스타일
+       ================================================ -->
+  <style>
+    /* CSS 변수 정의 - JavaScript에서 동적으로 변경됩니다 */
+    :root {
+      --primary-color: #00C6BD;        /* 메인 포인트 색상 (기본: 민트) */
+      --primary-color-light: #00C6BD20; /* 배경용 반투명 색상 */
+      --primary-color-hover: #00b2aa;   /* 호버 시 색상 */
+    }
+
+    /* 기본 폰트 설정 */
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #FAFAFA;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    /* 세리프 폰트 클래스 */
+    .font-serif {
+      font-family: 'Noto Serif KR', serif;
+    }
+
+    /* ================================================
+       테마 적용 클래스
+       - CSS 변수를 사용하여 날씨에 따라 동적으로 변경
+       ================================================ */
+    .theme-text { color: var(--primary-color); }
+    .theme-bg { background-color: var(--primary-color); }
+    .theme-border { border-color: var(--primary-color); }
+    .theme-bg-light { background-color: var(--primary-color-light); }
+
+    /* ================================================
+       읽기 진행률 바
+       - 스크롤 위치에 따라 너비가 변함
+       ================================================ */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: var(--primary-color);
+      width: 0%;
+      z-index: 100;
+      transition: width 0.1s ease-out;
+    }
+
+    /* ================================================
+       게시글 카드 스타일
+       ================================================ */
+    .post-card {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      border: 1px solid #f0f0f0;
+    }
+
+    .post-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+    }
+
+    .post-card .post-thumbnail img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+
+    .post-card:hover .post-thumbnail img {
+      transform: scale(1.02);
+    }
+
+    /* ================================================
+       페이드 인 애니메이션
+       ================================================ */
+    .fade-in {
+      animation: fadeIn 0.6s ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* 순차적 페이드인을 위한 딜레이 */
+    .fade-in:nth-child(1) { animation-delay: 0.1s; }
+    .fade-in:nth-child(2) { animation-delay: 0.2s; }
+    .fade-in:nth-child(3) { animation-delay: 0.3s; }
+    .fade-in:nth-child(4) { animation-delay: 0.4s; }
+    .fade-in:nth-child(5) { animation-delay: 0.5s; }
+
+    /* ================================================
+       마크다운 본문 스타일
+       ================================================ */
+    .markdown-body {
+      line-height: 1.9;
+      font-size: 1.1rem;
+      color: #333;
+    }
+
+    .markdown-body h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-top: 2.5rem;
+      margin-bottom: 1rem;
+      color: #1a1a1a;
+    }
+
+    .markdown-body h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      color: #1a1a1a;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #eee;
+    }
+
+    .markdown-body h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .markdown-body p {
+      margin-bottom: 1.5rem;
+    }
+
+    .markdown-body img {
+      border-radius: 8px;
+      margin: 2rem auto;
+      display: block;
+      max-width: 100%;
+    }
+
+    .markdown-body blockquote {
+      border-left: 3px solid var(--primary-color);
+      padding-left: 1.5rem;
+      margin: 2rem 0;
+      color: #666;
+      font-style: italic;
+      background: var(--primary-color-light);
+      padding: 1rem 1.5rem;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .markdown-body code {
+      background: #f5f5f5;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.9em;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+    }
+
+    .markdown-body pre {
+      background: #1a1a1a;
+      color: #f5f5f5;
+      padding: 1.5rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+
+    .markdown-body pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    .markdown-body ul, .markdown-body ol {
+      margin: 1rem 0;
+      padding-left: 1.5rem;
+    }
+
+    .markdown-body li {
+      margin-bottom: 0.5rem;
+    }
+
+    .markdown-body a {
+      color: var(--primary-color);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
+    }
+
+    .markdown-body a:hover {
+      border-bottom-color: var(--primary-color);
+    }
+
+    /* ================================================
+       날씨 인디케이터
+       ================================================ */
+    .weather-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--primary-color-light);
+      border-radius: 20px;
+      font-size: 0.875rem;
+      transition: all 0.3s ease;
+    }
+
+    .weather-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--primary-color);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ================================================
+       로딩 스피너
+       ================================================ */
+    .loader {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* 로딩 오버레이 */
+    #loader-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.9);
+      z-index: 50;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #loader-overlay.active {
+      display: flex;
+    }
+
+    /* ================================================
+       에러 토스트
+       ================================================ */
+    #error-toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #ef4444;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 60;
+    }
+
+    #error-toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* ================================================
+       빈 상태 표시
+       ================================================ */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: #999;
+    }
+
+    .empty-state svg {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 1rem;
+      stroke: #ddd;
+    }
+
+    /* ================================================
+       뒤로가기 버튼
+       ================================================ */
+    .back-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #666;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+      cursor: pointer;
+    }
+
+    .back-button:hover {
+      color: var(--primary-color);
+    }
+
+    /* ================================================
+       반응형 디자인
+       ================================================ */
+    @media (max-width: 768px) {
+      .markdown-body {
+        font-size: 1rem;
+      }
+
+      .post-card .post-thumbnail img {
+        height: 180px;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- ================================================
+       읽기 진행률 바
+       - 페이지 스크롤에 따라 너비가 변합니다
+       ================================================ -->
+  <div id="progress-bar"></div>
+
+  <!-- ================================================
+       헤더
+       - 고정 위치, 블러 배경
+       ================================================ -->
+  <header class="fixed top-0 w-full bg-white/90 backdrop-blur-md border-b border-gray-100 z-40">
+    <div class="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
+      <!-- 로고 (클릭 시 메인 페이지로 이동) -->
+      <a href="/" class="text-xl font-light tracking-widest hover:opacity-70 transition-opacity"
+         onclick="event.preventDefault(); Router.navigate('/')">
+        BLOG
+      </a>
+
+      <!-- 날씨 인디케이터 (현재 날씨와 테마 색상 표시) -->
+      <div id="weather-indicator" class="weather-indicator">
+        <span class="weather-dot"></span>
+        <span id="weather-label">로딩중...</span>
+        <span id="weather-temp" class="text-gray-500"></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================================================
+       메인 컨텐츠 영역
+       ================================================ -->
+  <main class="pt-24 pb-16 min-h-screen">
+    <div class="max-w-3xl mx-auto px-6">
+      <!-- 게시글 목록 컨테이너 -->
+      <section id="post-list-container">
+        <!-- 페이지 제목 -->
+        <div class="mb-12">
+          <h1 class="text-3xl font-serif font-light text-gray-800 mb-2">이야기</h1>
+          <p class="text-gray-500">날씨와 함께하는 일상의 기록</p>
+        </div>
+
+        <!-- 게시글 카드들이 여기에 렌더링됩니다 -->
+        <div id="post-list" class="grid gap-8">
+          <!-- JavaScript로 동적 생성 -->
+        </div>
+
+        <!-- 페이지네이션 -->
+        <div id="pagination" class="mt-12 flex justify-center gap-2">
+          <!-- JavaScript로 동적 생성 -->
+        </div>
+      </section>
+
+      <!-- 게시글 상세 컨테이너 (처음에는 숨김) -->
+      <section id="post-detail-container" class="hidden">
+        <!-- JavaScript로 동적 생성 -->
+      </section>
+    </div>
+  </main>
+
+  <!-- ================================================
+       푸터
+       ================================================ -->
+  <footer class="bg-white border-t border-gray-100 py-12">
+    <div class="max-w-3xl mx-auto px-6 text-center">
+      <p class="text-sm text-gray-400">
+        &copy; 2026 브런치 블로그. 날씨에 따라 색상이 변하는 감성 블로그.
+      </p>
+      <p class="text-xs text-gray-300 mt-2">
+        Powered by Open-Meteo & Supabase
+      </p>
+    </div>
+  </footer>
+
+  <!-- ================================================
+       로딩 오버레이
+       ================================================ -->
+  <div id="loader-overlay">
+    <div class="loader"></div>
+  </div>
+
+  <!-- ================================================
+       에러 토스트
+       ================================================ -->
+  <div id="error-toast"></div>
+
+  <!-- ================================================
+       클라이언트 스크립트
+       ================================================ -->
+  <script src="/client.js"></script>
+</body>
+</html>

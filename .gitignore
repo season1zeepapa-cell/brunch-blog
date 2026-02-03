@@ -1,0 +1,34 @@
+# 의존성 폴더
+node_modules/
+
+# 환경 변수 (민감한 정보 보호)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel 배포 관련
+.vercel
+
+# 운영체제 관련
+.DS_Store
+Thumbs.db
+
+# 에디터 관련
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 로그 파일
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 빌드 결과물
+dist/
+build/
+
+# 테스트 커버리지
+coverage/
