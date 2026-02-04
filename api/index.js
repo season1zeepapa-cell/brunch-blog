@@ -29,7 +29,8 @@ const app = express();
 // 미들웨어 설정
 // ================================================
 app.use(cors());  // CORS 허용 - 다른 도메인에서의 요청 허용
-app.use(express.json());  // JSON 요청 본문 파싱
+// JSON 요청 본문 파싱 (Base64 이미지 데이터를 위해 5MB까지 허용)
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static('public'));  // public 폴더의 정적 파일 제공
 
 // ================================================
