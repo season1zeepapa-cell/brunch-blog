@@ -68,10 +68,29 @@ SPA 방식으로 DOM을 show/hide하여 뷰를 전환합니다.
 주요 함수:
 - `showHome()`, `showPost(id)`, `showWrite()`, `showEdit()`: 뷰 전환
 - `fetchPosts()`, `fetchPost(id)`, `createPost(data)`, `updatePost(id, data)`, `deletePost(id)`: API 호출
-- `renderPostList(posts)`, `renderPostDetail(post)`: DOM 렌더링
+- `renderPostList()`, `renderPostDetail(post)`: DOM 렌더링
+- `loadMorePosts()`: 게시글 더보기 (초기 3개, 클릭 시 2개씩 추가)
+- `setUploadTab()`, `initDropZone()`, `handleFileSelect()`: 이미지 업로드 처리
 - `confirmDelete(id)`: 삭제 확인 다이얼로그
 - `updateTheme(isDark)`: 다크/라이트 모드 토글
 - `escapeHtml(text)`: XSS 방지용 HTML 이스케이프
+
+### 이미지 업로드 (Base64 방식)
+
+썸네일 이미지는 Base64로 인코딩하여 DB의 `thumbnail` 컬럼에 직접 저장합니다.
+
+- **업로드 방식:** 드래그 앤 드롭 또는 클릭으로 파일 선택
+- **탭 UI:** 파일 업로드 / URL 입력 중 선택 가능
+- **용량 제한:** JSON 본문 5MB 제한 (`express.json({ limit: '5mb' })`)
+- **저장 형태:** `data:image/...;base64,...` 형식으로 저장
+
+### 게시글 더보기
+
+메인 페이지에서 게시글을 점진적으로 로드합니다.
+
+- 초기 표시: 3개 (`INITIAL_COUNT`)
+- 더보기 클릭: 2개씩 추가 (`LOAD_MORE_COUNT`)
+- 상태 변수: `allPosts`, `displayedCount`
 
 ### API 엔드포인트
 
