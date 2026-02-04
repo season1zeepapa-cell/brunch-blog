@@ -32,7 +32,6 @@ app.listen(PORT, () => {
   console.log(`  📍 로컬 주소: http://localhost:${PORT}`);
   console.log('');
   console.log('  📌 API 엔드포인트:');
-  console.log(`     🌤️  날씨: http://localhost:${PORT}/api/weather`);
   console.log(`     📝 게시글: http://localhost:${PORT}/api/posts`);
   console.log('');
   console.log('  💡 팁: Ctrl+C를 눌러 서버를 종료할 수 있습니다.');
