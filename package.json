@@ -1,11 +1,15 @@
 {
   "name": "brunch-blog",
   "version": "1.0.0",
-  "description": "날씨 연동 서버리스 미니멀 블로그 - 날씨에 따라 색상이 변하는 감성 블로그",
+  "description": "미니멀 감성 블로그 - 다크모드를 지원하는 서버리스 SPA 블로그",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop brunch-blog",
+    "pm2:restart": "pm2 restart brunch-blog",
+    "pm2:logs": "pm2 logs brunch-blog"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -18,10 +22,10 @@
   },
   "keywords": [
     "blog",
-    "weather",
     "serverless",
     "vercel",
-    "supabase"
+    "supabase",
+    "spa"
   ],
   "author": "",
   "license": "MIT"

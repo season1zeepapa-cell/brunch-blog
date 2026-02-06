@@ -84,6 +84,27 @@ async function ensureSchema() {
 ensureSchema().catch(console.error);
 
 // ================================================
+// 🏥 헬스체크 엔드포인트 (Lightsail 배포용)
+// ================================================
+/**
+ * GET /health
+ *
+ * 서버와 데이터베이스 연결 상태를 확인합니다.
+ * - 로드 밸런서나 모니터링 도구가 이 엔드포인트를 호출하여 서버 상태를 확인합니다.
+ * - DB 연결이 정상이면 'healthy', 문제가 있으면 'unhealthy'를 반환합니다.
+ */
+app.get('/health', async (req, res) => {
+  try {
+    // 간단한 쿼리로 DB 연결 확인 (SELECT 1은 가장 가벼운 쿼리)
+    await pool.query('SELECT 1');
+    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('헬스체크 실패:', error.message);
+    res.status(500).json({ status: 'unhealthy', error: error.message });
+  }
+});
+
+// ================================================
 // 📝 게시글 CRUD API 엔드포인트
 // ================================================
 
